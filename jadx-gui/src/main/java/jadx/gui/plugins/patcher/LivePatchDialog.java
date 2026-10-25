@@ -36,7 +36,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jadx.api.ResourceFile;
-import jadx.core.xmlgen.AndroidManifestParser;
+import jadx.core.utils.android.AndroidManifestParser;
 import jadx.gui.treemodel.JClass;
 import jadx.gui.treemodel.JNode;
 import jadx.gui.treemodel.JResource;
