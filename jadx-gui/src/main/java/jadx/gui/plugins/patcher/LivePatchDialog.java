@@ -359,7 +359,8 @@ public class LivePatchDialog extends JDialog {
 		if (targetClass != null) {
 			new Thread(() -> {
 				try {
-					outputApk = patcherManager.patchClassAndRebuild(apkPath, targetClass, editedContent, this::updateProgress);
+					outputApk = patcherManager.patchClassAndRebuild(apkPath, targetClass, editedContent,
+							this::updateProgress);
 					onBuildSuccess();
 				} catch (Exception ex) {
 					onBuildError(ex);
@@ -370,7 +371,8 @@ public class LivePatchDialog extends JDialog {
 		} else if (targetResource != null) {
 			new Thread(() -> {
 				try {
-					outputApk = patcherManager.patchResourceAndRebuild(apkPath, targetResource.getName(), editedContent, this::updateProgress);
+					outputApk =
+							patcherManager.patchResourceAndRebuild(apkPath, targetResource.getName(), editedContent, this::updateProgress);
 					onBuildSuccess();
 				} catch (Exception ex) {
 					onBuildError(ex);

@@ -189,8 +189,8 @@ public class LivePatcherManager {
 
 		// 3. Disassemble to Smali with Baksmali
 		progress.onProgress(65, "Step 3/5: Disassembling DEX to Smali with Baksmali...");
-		Path baksmaliJar = binDir.resolve("baksmali-2.5.2.jar");
-		runCmd(msg -> progress.onProgress(70, msg), "java", "-jar", baksmaliJar.toString(), "d", dexFile.toString(), "-o", smaliDir.toString());
+		runCmd(msg -> progress.onProgress(70, msg), "java", "-jar", baksmaliJar.toString(), "d", dexFile.toString(), "-o",
+				smaliDir.toString());
 
 		List<Path> smaliFiles = new ArrayList<>();
 		try (Stream<Path> stream = Files.walk(smaliDir)) {
