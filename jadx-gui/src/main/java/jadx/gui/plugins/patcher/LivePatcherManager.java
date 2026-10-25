@@ -294,10 +294,13 @@ public class LivePatcherManager {
 			return inRes;
 		}
 		String fileName = Paths.get(clean).getFileName().toString();
+		final String matchClean = clean;
+		final String matchFileName = fileName;
 		try (Stream<Path> stream = Files.walk(apktoolDir)) {
 			Optional<Path> found = stream
 					.filter(Files::isRegularFile)
-					.filter(p -> p.toString().replace('\\', '/').endsWith(clean) || p.getFileName().toString().equals(fileName))
+					.filter(p -> p.toString().replace('\\', '/').endsWith(matchClean)
+							|| p.getFileName().toString().equals(matchFileName))
 					.findFirst();
 			if (found.isPresent()) {
 				return found.get();
