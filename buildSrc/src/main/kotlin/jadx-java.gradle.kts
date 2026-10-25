@@ -44,6 +44,10 @@ tasks {
 		options.release.set(jadxBuildJavaVersion ?: 11)
 		// options.compilerArgs = listOf("-Xlint:deprecation")
 	}
+	withType<Javadoc> {
+		options.encoding = "UTF-8"
+		(options as StandardJavadocDocletOptions).charSet = "UTF-8"
+	}
 	test {
 		useJUnitPlatform()
 		maxParallelForks = Runtime.getRuntime().availableProcessors()

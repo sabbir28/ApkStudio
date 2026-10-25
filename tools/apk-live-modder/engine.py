@@ -282,3 +282,32 @@ class ModderEngine:
 
         self.log(f"BUILD SUCCESS! Final signed APK ready at:\n  {final_apk}")
         return final_apk
+
+    def patch_resource(self, workspace_dir, rel_path, new_content):
+        workspace_dir = Path(workspace_dir).resolve()
+        apktool_dir = workspace_dir / "apktool_src"
+        if not apktool_dir.exists():
+            raise RuntimeError(f"Apktool directory not found at {apktool_dir}. Disassemble the APK first.")
+
+        clean = rel_path.replace("\\", "/").lstrip("/")
+        if clean.endswith("AndroidManifest.xml") or clean.lower() == "androidmanifest.xml":
+            target = apktool_dir / "AndroidManifest.xml"
+        else:
+            if clean.startswith("resources/"):
+                clean = clean[len("resources/"):]
+            target = apktool_dir / clean
+            if not target.exists():
+                if (apktool_dir / "res" / clean).exists():
+                    target = apktool_dir / "res" / clean
+                else:
+                    file_name = Path(clean).name
+                    matches = list(apktool_dir.rglob(file_name))
+                    if matches:
+                        target = matches[0]
+
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with open(target, "w", encoding="utf-8") as f:
+            f.write(new_content)
+        self.log(f"Successfully updated resource: {target.relative_to(apktool_dir)}")
+        return target
+

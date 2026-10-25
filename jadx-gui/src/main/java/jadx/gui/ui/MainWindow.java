@@ -1222,6 +1222,8 @@ public class MainWindow extends JFrame implements IMainWindow {
 				() -> new ADBDialog(MainWindow.this).setVisible(true));
 		JadxGuiAction livePatcherAction = new JadxGuiAction(ActionModel.APK_LIVE_PATCH,
 				() -> LivePatchDialog.open(MainWindow.this));
+		JMenuItem patchManifestItem = new JMenuItem("Edit & Patch AndroidManifest.xml...");
+		patchManifestItem.addActionListener(e -> LivePatchDialog.openForManifest(MainWindow.this));
 
 		JMenu file = new JadxMenu(NLS.str("menu.file"), shortcutsController);
 		file.setMnemonic(KeyEvent.VK_F);
@@ -1286,6 +1288,7 @@ public class MainWindow extends JFrame implements IMainWindow {
 		tools.add(quarkAction);
 		tools.add(debuggerAction);
 		tools.add(livePatcherAction);
+		tools.add(patchManifestItem);
 
 		JMenu help = new JadxMenu(NLS.str("menu.help"), shortcutsController);
 		help.setMnemonic(KeyEvent.VK_H);

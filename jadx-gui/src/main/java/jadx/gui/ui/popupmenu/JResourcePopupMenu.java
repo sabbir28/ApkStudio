@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import jadx.api.plugins.utils.CommonFileUtils;
 import jadx.core.dex.visitors.SaveCode;
+import jadx.gui.plugins.patcher.LivePatchDialog;
 import jadx.gui.treemodel.JResource;
 import jadx.gui.ui.MainWindow;
 import jadx.gui.ui.filedialog.FileDialogWrapper;
@@ -32,9 +33,18 @@ public class JResourcePopupMenu extends JPopupMenu {
 	public JResourcePopupMenu(MainWindow mainWindow, JResource resource) {
 		this.mainWindow = mainWindow;
 
+		if (resource.getType() == JResource.JResType.FILE) {
+			add(makePatchResourceMenuItem(resource));
+		}
 		if (resource.getType() != JResource.JResType.ROOT) {
 			add(makeExportMenuItem(resource));
 		}
+	}
+
+	private JMenuItem makePatchResourceMenuItem(JResource resource) {
+		JMenuItem patchItem = new JMenuItem("Edit & Patch to APK...");
+		patchItem.addActionListener(e -> LivePatchDialog.openForResource(mainWindow, resource));
+		return patchItem;
 	}
 
 	private JMenuItem makeExportMenuItem(JResource resource) {

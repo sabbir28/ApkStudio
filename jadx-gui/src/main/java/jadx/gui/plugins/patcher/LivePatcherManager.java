@@ -14,6 +14,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -219,11 +220,80 @@ public class LivePatcherManager {
 		}
 
 		// 5. Rebuild and Sign APK
-		progress.accept("Step 5/5: Reassembling and Signing APK with Apktool & Uber-Signer...");
+		return rebuildAndSignApk(apktoolDir, buildDir, distDir, progress);
+	}
+
+	public Path patchResourceAndRebuild(Path apkPath, String relResPath, String newContent, Consumer<String> progress)
+			throws Exception {
+		ensureTools(progress);
+		Path workspace = prepareApktoolWorkspace(apkPath, progress);
+		Path apktoolDir = workspace.resolve("apktool_src");
+		Path buildDir = workspace.resolve("build");
+		Path distDir = workspace.resolve("dist");
+
+		Files.createDirectories(buildDir);
+		Files.createDirectories(distDir);
+
+		progress.accept("Step 1/2: Updating decoded resource in Apktool workspace...");
+		Path targetFile = resolveApktoolResource(apktoolDir, relResPath);
+		Files.createDirectories(targetFile.getParent());
+		Files.writeString(targetFile, newContent, StandardCharsets.UTF_8);
+		progress.accept("Saved modified resource: " + apktoolDir.relativize(targetFile));
+
+		return rebuildAndSignApk(apktoolDir, buildDir, distDir, progress);
+	}
+
+	public String loadDecodedResource(Path apkPath, String relResPath, Consumer<String> progress) throws Exception {
+		ensureTools(progress);
+		Path workspace = prepareApktoolWorkspace(apkPath, progress);
+		Path apktoolDir = workspace.resolve("apktool_src");
+		Path targetFile = resolveApktoolResource(apktoolDir, relResPath);
+		if (Files.exists(targetFile)) {
+			return Files.readString(targetFile, StandardCharsets.UTF_8);
+		}
+		return null;
+	}
+
+	public Path resolveApktoolResource(Path apktoolDir, String relResPath) {
+		String clean = relResPath.replace('\\', '/').trim();
+		while (clean.startsWith("/")) {
+			clean = clean.substring(1);
+		}
+		if (clean.endsWith("AndroidManifest.xml") || clean.equalsIgnoreCase("AndroidManifest.xml")) {
+			return apktoolDir.resolve("AndroidManifest.xml");
+		}
+		if (clean.startsWith("resources/")) {
+			clean = clean.substring("resources/".length());
+		}
+		Path direct = apktoolDir.resolve(clean);
+		if (Files.exists(direct)) {
+			return direct;
+		}
+		Path inRes = apktoolDir.resolve("res").resolve(clean);
+		if (Files.exists(inRes)) {
+			return inRes;
+		}
+		String fileName = Paths.get(clean).getFileName().toString();
+		try (Stream<Path> stream = Files.walk(apktoolDir)) {
+			Optional<Path> found = stream
+					.filter(Files::isRegularFile)
+					.filter(p -> p.toString().replace('\\', '/').endsWith(clean) || p.getFileName().toString().equals(fileName))
+					.findFirst();
+			if (found.isPresent()) {
+				return found.get();
+			}
+		} catch (Exception ignored) {
+		}
+		return direct;
+	}
+
+	private Path rebuildAndSignApk(Path apktoolDir, Path buildDir, Path distDir, Consumer<String> progress) throws Exception {
+		progress.accept("Reassembling APK with Apktool (compiling XML resources & smali)...");
 		Path apktoolJar = binDir.resolve("apktool_2.10.0.jar");
 		Path unsignedApk = buildDir.resolve("unsigned.apk");
 		runCmd(progress, "java", "-jar", apktoolJar.toString(), "b", "-f", apktoolDir.toString(), "-o", unsignedApk.toString());
 
+		progress.accept("Signing and aligning APK with Uber-APK-Signer...");
 		Path signerJar = binDir.resolve("uber-apk-signer-1.3.0.jar");
 		runCmd(progress, "java", "-jar", signerJar.toString(), "--apks", unsignedApk.toString(), "--out", distDir.toString(),
 				"--overwrite");
@@ -239,7 +309,7 @@ public class LivePatcherManager {
 			throw new RuntimeException("No signed APK produced in " + distDir);
 		}
 
-		progress.accept("🎉 BUILD SUCCESS! Final APK ready at:\n" + finalApk.toAbsolutePath());
+		progress.accept("BUILD SUCCESS! Final APK ready at:\n" + finalApk.toAbsolutePath());
 		return finalApk;
 	}
 
