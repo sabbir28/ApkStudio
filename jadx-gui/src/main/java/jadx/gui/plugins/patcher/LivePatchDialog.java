@@ -22,6 +22,7 @@ import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.SwingUtilities;
@@ -57,6 +58,9 @@ public class LivePatchDialog extends JDialog {
 	private JLabel targetLabel;
 	private RSyntaxTextArea codeArea;
 	private TitledBorder codeBorder;
+	private JLabel statusDetailLabel;
+	private JLabel stepBadge;
+	private JProgressBar progressBar;
 	private JTextArea logArea;
 	private JButton btnRebuild;
 	private JButton btnOpenDist;
@@ -148,9 +152,9 @@ public class LivePatchDialog extends JDialog {
 		// Top panel: APK selector, Target info, and quick buttons
 		JPanel topPanel = new JPanel();
 		topPanel.setLayout(new BoxLayout(topPanel, BoxLayout.Y_AXIS));
-		topPanel.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
+		topPanel.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
 
-		JPanel row1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+		JPanel row1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
 		row1.add(new JLabel("Target APK:"));
 		apkCombo = new JComboBox<>(apkFiles.toArray(new Path[0]));
 		apkCombo.setRenderer((list, value, index, isSelected, cellHasFocus) -> {
@@ -187,9 +191,41 @@ public class LivePatchDialog extends JDialog {
 		codeScrollPane.setBorder(codeBorder);
 		add(codeScrollPane, BorderLayout.CENTER);
 
-		// Bottom panel: Log console and Action buttons
-		JPanel bottomPanel = new JPanel(new BorderLayout(5, 5));
-		bottomPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 8, 10));
+		// Bottom panel: Progress bar, Diagnostics, and Action buttons
+		JPanel bottomPanel = new JPanel(new BorderLayout(5, 6));
+		bottomPanel.setBorder(BorderFactory.createEmptyBorder(6, 12, 10, 12));
+
+		JPanel centerBottom = new JPanel(new BorderLayout(0, 6));
+
+		// Visible Progress Bar & Status Section
+		JPanel progressPanel = new JPanel(new BorderLayout(0, 4));
+		progressPanel.setBorder(BorderFactory.createEmptyBorder(2, 0, 4, 0));
+
+		JPanel statusHeader = new JPanel(new BorderLayout(5, 0));
+		statusHeader.setOpaque(false);
+
+		statusDetailLabel = new JLabel("Status: Ready to patch & rebuild");
+		statusDetailLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+		statusDetailLabel.setForeground(new Color(0x33, 0x33, 0x33));
+
+		stepBadge = new JLabel("Idle");
+		stepBadge.setFont(new Font("Segoe UI", Font.BOLD, 11));
+		stepBadge.setForeground(new Color(0x75, 0x75, 0x75));
+
+		statusHeader.add(statusDetailLabel, BorderLayout.WEST);
+		statusHeader.add(stepBadge, BorderLayout.EAST);
+		progressPanel.add(statusHeader, BorderLayout.NORTH);
+
+		progressBar = new JProgressBar(0, 100);
+		progressBar.setValue(0);
+		progressBar.setStringPainted(true);
+		progressBar.setString("0% - Ready");
+		progressBar.setPreferredSize(new Dimension(800, 24));
+		progressBar.setFont(new Font("Segoe UI", Font.BOLD, 11));
+		progressBar.setForeground(new Color(0x19, 0x76, 0xd2));
+		progressPanel.add(progressBar, BorderLayout.CENTER);
+
+		centerBottom.add(progressPanel, BorderLayout.NORTH);
 
 		logArea = new JTextArea(5, 80);
 		logArea.setEditable(false);
@@ -198,7 +234,9 @@ public class LivePatchDialog extends JDialog {
 		logArea.setForeground(new Color(0xd4, 0xd4, 0xd4));
 		JScrollPane logScrollPane = new JScrollPane(logArea);
 		logScrollPane.setBorder(BorderFactory.createTitledBorder("Build Diagnostics & Progress"));
-		bottomPanel.add(logScrollPane, BorderLayout.CENTER);
+		centerBottom.add(logScrollPane, BorderLayout.CENTER);
+
+		bottomPanel.add(centerBottom, BorderLayout.CENTER);
 
 		JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 5));
 		btnRebuild = new JButton("Compile & Rebuild APK");
@@ -237,7 +275,7 @@ public class LivePatchDialog extends JDialog {
 		codeArea.setText(cls.getCodeInfo().getCodeStr());
 		codeArea.setCaretPosition(0);
 		btnRebuild.setEnabled(true);
-		log("Ready to edit class " + cls.getFullName() + ". Make changes and click 'Compile & Rebuild APK'.");
+		updateProgress(0, "Ready to edit class " + cls.getFullName());
 		repaint();
 	}
 
@@ -260,7 +298,7 @@ public class LivePatchDialog extends JDialog {
 		codeArea.setText(res.getCodeInfo().getCodeStr());
 		codeArea.setCaretPosition(0);
 		btnRebuild.setEnabled(true);
-		log("Ready to edit resource " + res.getName() + ". Make changes and click 'Compile & Rebuild APK'.");
+		updateProgress(0, "Ready to edit resource " + res.getName());
 		repaint();
 	}
 
@@ -279,6 +317,28 @@ public class LivePatchDialog extends JDialog {
 		return false;
 	}
 
+	private void updateProgress(int percent, String message) {
+		SwingUtilities.invokeLater(() -> {
+			progressBar.setValue(percent);
+			progressBar.setString(percent + "% - " + message);
+			statusDetailLabel.setText("Status: " + message);
+			if (percent == 100) {
+				stepBadge.setText("Complete");
+				stepBadge.setForeground(new Color(0x2e, 0x7d, 0x32));
+				progressBar.setForeground(new Color(0x2e, 0x7d, 0x32));
+			} else if (percent > 0) {
+				stepBadge.setText("Building (" + percent + "%)");
+				stepBadge.setForeground(new Color(0x19, 0x76, 0xd2));
+				progressBar.setForeground(new Color(0x19, 0x76, 0xd2));
+			} else {
+				stepBadge.setText("Ready");
+				stepBadge.setForeground(new Color(0x75, 0x75, 0x75));
+				progressBar.setForeground(new Color(0x19, 0x76, 0xd2));
+			}
+		});
+		log(message);
+	}
+
 	private void startPatchAndRebuild() {
 		Path apkPath = (Path) apkCombo.getSelectedItem();
 		if (apkPath == null || !Files.exists(apkPath)) {
@@ -292,13 +352,14 @@ public class LivePatchDialog extends JDialog {
 
 		String editedContent = codeArea.getText();
 		btnRebuild.setEnabled(false);
+		btnOpenDist.setEnabled(false);
 		logArea.setText("");
+		updateProgress(1, "Starting live patch pipeline...");
 
 		if (targetClass != null) {
-			log("Starting live patch pipeline for Java class: " + targetClass.getFullName());
 			new Thread(() -> {
 				try {
-					outputApk = patcherManager.patchClassAndRebuild(apkPath, targetClass, editedContent, this::log);
+					outputApk = patcherManager.patchClassAndRebuild(apkPath, targetClass, editedContent, this::updateProgress);
 					onBuildSuccess();
 				} catch (Exception ex) {
 					onBuildError(ex);
@@ -307,10 +368,9 @@ public class LivePatchDialog extends JDialog {
 				}
 			}).start();
 		} else if (targetResource != null) {
-			log("Starting live patch pipeline for Resource: " + targetResource.getName());
 			new Thread(() -> {
 				try {
-					outputApk = patcherManager.patchResourceAndRebuild(apkPath, targetResource.getName(), editedContent, this::log);
+					outputApk = patcherManager.patchResourceAndRebuild(apkPath, targetResource.getName(), editedContent, this::updateProgress);
 					onBuildSuccess();
 				} catch (Exception ex) {
 					onBuildError(ex);
@@ -323,6 +383,12 @@ public class LivePatchDialog extends JDialog {
 
 	private void onBuildSuccess() {
 		SwingUtilities.invokeLater(() -> {
+			progressBar.setValue(100);
+			progressBar.setString("100% - Build & Sign Complete!");
+			progressBar.setForeground(new Color(0x2e, 0x7d, 0x32));
+			statusDetailLabel.setText("Status: Success! Modified APK ready.");
+			stepBadge.setText("Success");
+			stepBadge.setForeground(new Color(0x2e, 0x7d, 0x32));
 			btnOpenDist.setEnabled(true);
 			JOptionPane.showMessageDialog(LivePatchDialog.this,
 					"Modified APK Successfully Built & Signed!\nSaved at:\n" + outputApk.toAbsolutePath(),
@@ -334,6 +400,12 @@ public class LivePatchDialog extends JDialog {
 		LOG.error("Live patch rebuild failed", ex);
 		log("ERROR: " + ex.getMessage());
 		SwingUtilities.invokeLater(() -> {
+			progressBar.setValue(100);
+			progressBar.setString("Build Failed: " + ex.getMessage());
+			progressBar.setForeground(new Color(0xc6, 0x28, 0x28));
+			statusDetailLabel.setText("Status: Error during build");
+			stepBadge.setText("Failed");
+			stepBadge.setForeground(new Color(0xc6, 0x28, 0x28));
 			JOptionPane.showMessageDialog(LivePatchDialog.this,
 					"Rebuild failed:\n" + ex.getMessage(),
 					"Error", JOptionPane.ERROR_MESSAGE);

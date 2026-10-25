@@ -264,6 +264,7 @@ class ModderEngine:
             "java", "-jar", str(signer_jar),
             "--apks", str(unsigned_apk),
             "--out", str(dist_dir),
+            "--allowResign",
             "--overwrite"
         ])
 

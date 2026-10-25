@@ -105,9 +105,20 @@ public class LivePatcherManager {
 		return workspace;
 	}
 
+	@FunctionalInterface
+	public interface ProgressListener {
+		void onProgress(int percent, String message);
+	}
+
 	public Path patchClassAndRebuild(Path apkPath, JClass jClass, String newJavaCode, Consumer<String> progress) throws Exception {
-		ensureTools(progress);
-		Path workspace = prepareApktoolWorkspace(apkPath, progress);
+		return patchClassAndRebuild(apkPath, jClass, newJavaCode, (pct, msg) -> progress.accept(msg));
+	}
+
+	public Path patchClassAndRebuild(Path apkPath, JClass jClass, String newJavaCode, ProgressListener progress) throws Exception {
+		progress.onProgress(5, "Verifying build tools & environment...");
+		ensureTools(msg -> progress.onProgress(8, msg));
+		progress.onProgress(12, "Preparing Apktool workspace...");
+		Path workspace = prepareApktoolWorkspace(apkPath, msg -> progress.onProgress(18, msg));
 		Path apktoolDir = workspace.resolve("apktool_src");
 		Path buildDir = workspace.resolve("build");
 		Path distDir = workspace.resolve("dist");
@@ -130,12 +141,12 @@ public class LivePatcherManager {
 		Files.createDirectories(tempJavaFile.getParent());
 		Files.writeString(tempJavaFile, newJavaCode, StandardCharsets.UTF_8);
 
-		progress.accept("Step 1/5: Compiling modified Java with ECJ...");
+		progress.onProgress(25, "Step 1/5: Compiling modified Java with ECJ...");
 		Path ecjJar = binDir.resolve("ecj-3.33.0.jar");
 		Path androidJar = binDir.resolve("android.jar");
 		String classpath = androidJar + File.pathSeparator + apkPath.toAbsolutePath();
 
-		runCmd(progress, "java", "-jar", ecjJar.toString(),
+		runCmd(msg -> progress.onProgress(35, msg), "java", "-jar", ecjJar.toString(),
 				"-1.8", "-nowarn", "-proceedOnError",
 				"-cp", classpath,
 				"-d", classesDir.toString(),
@@ -148,10 +159,10 @@ public class LivePatcherManager {
 		if (classFiles.isEmpty()) {
 			throw new RuntimeException("ECJ failed to produce any .class files for " + tempJavaFile);
 		}
-		progress.accept("Generated " + classFiles.size() + " class file(s).");
+		progress.onProgress(45, "Generated " + classFiles.size() + " class file(s).");
 
 		// 2. Convert to DEX with D8
-		progress.accept("Step 2/5: Converting bytecode to DEX with D8...");
+		progress.onProgress(50, "Step 2/5: Converting bytecode to DEX with D8...");
 		Path r8Jar = binDir.resolve("r8-8.2.42.jar");
 		List<String> d8Cmd = new ArrayList<>();
 		d8Cmd.add("java");
@@ -168,17 +179,18 @@ public class LivePatcherManager {
 		for (Path cf : classFiles) {
 			d8Cmd.add(cf.toString());
 		}
-		runCmd(progress, d8Cmd.toArray(new String[0]));
+		runCmd(msg -> progress.onProgress(55, msg), d8Cmd.toArray(new String[0]));
 
 		Path dexFile = dexDir.resolve("classes.dex");
 		if (!Files.exists(dexFile)) {
 			throw new RuntimeException("D8 failed to generate classes.dex");
 		}
+		progress.onProgress(60, "classes.dex generated successfully.");
 
 		// 3. Disassemble to Smali with Baksmali
-		progress.accept("Step 3/5: Disassembling DEX to Smali with Baksmali...");
+		progress.onProgress(65, "Step 3/5: Disassembling DEX to Smali with Baksmali...");
 		Path baksmaliJar = binDir.resolve("baksmali-2.5.2.jar");
-		runCmd(progress, "java", "-jar", baksmaliJar.toString(), "d", dexFile.toString(), "-o", smaliDir.toString());
+		runCmd(msg -> progress.onProgress(70, msg), "java", "-jar", baksmaliJar.toString(), "d", dexFile.toString(), "-o", smaliDir.toString());
 
 		List<Path> smaliFiles = new ArrayList<>();
 		try (Stream<Path> stream = Files.walk(smaliDir)) {
@@ -187,9 +199,10 @@ public class LivePatcherManager {
 		if (smaliFiles.isEmpty()) {
 			throw new RuntimeException("Baksmali failed to generate .smali files");
 		}
+		progress.onProgress(75, "Generated " + smaliFiles.size() + " smali file(s).");
 
 		// 4. Hot-swap into Apktool directory
-		progress.accept("Step 4/5: Hot-swapping " + smaliFiles.size() + " Smali file(s) into Apktool workspace...");
+		progress.onProgress(78, "Step 4/5: Hot-swapping " + smaliFiles.size() + " Smali file(s) into Apktool workspace...");
 		for (Path generatedSmali : smaliFiles) {
 			Path relSmali = smaliDir.relativize(generatedSmali);
 			boolean targetFound = false;
@@ -206,7 +219,7 @@ public class LivePatcherManager {
 				if (Files.exists(target) || Files.exists(target.getParent())) {
 					Files.createDirectories(target.getParent());
 					Files.copy(generatedSmali, target, StandardCopyOption.REPLACE_EXISTING);
-					progress.accept("Patched: " + root.getFileName() + "/" + relSmali);
+					progress.onProgress(82, "Patched: " + root.getFileName() + "/" + relSmali);
 					targetFound = true;
 					break;
 				}
@@ -215,7 +228,7 @@ public class LivePatcherManager {
 				Path defaultTarget = apktoolDir.resolve("smali").resolve(relSmali);
 				Files.createDirectories(defaultTarget.getParent());
 				Files.copy(generatedSmali, defaultTarget, StandardCopyOption.REPLACE_EXISTING);
-				progress.accept("Placed in primary smali: " + relSmali);
+				progress.onProgress(82, "Placed in primary smali: " + relSmali);
 			}
 		}
 
@@ -225,8 +238,15 @@ public class LivePatcherManager {
 
 	public Path patchResourceAndRebuild(Path apkPath, String relResPath, String newContent, Consumer<String> progress)
 			throws Exception {
-		ensureTools(progress);
-		Path workspace = prepareApktoolWorkspace(apkPath, progress);
+		return patchResourceAndRebuild(apkPath, relResPath, newContent, (pct, msg) -> progress.accept(msg));
+	}
+
+	public Path patchResourceAndRebuild(Path apkPath, String relResPath, String newContent, ProgressListener progress)
+			throws Exception {
+		progress.onProgress(10, "Verifying build tools & environment...");
+		ensureTools(msg -> progress.onProgress(15, msg));
+		progress.onProgress(25, "Preparing Apktool workspace...");
+		Path workspace = prepareApktoolWorkspace(apkPath, msg -> progress.onProgress(35, msg));
 		Path apktoolDir = workspace.resolve("apktool_src");
 		Path buildDir = workspace.resolve("build");
 		Path distDir = workspace.resolve("dist");
@@ -234,11 +254,11 @@ public class LivePatcherManager {
 		Files.createDirectories(buildDir);
 		Files.createDirectories(distDir);
 
-		progress.accept("Step 1/2: Updating decoded resource in Apktool workspace...");
+		progress.onProgress(50, "Step 1/2: Updating decoded resource in Apktool workspace...");
 		Path targetFile = resolveApktoolResource(apktoolDir, relResPath);
 		Files.createDirectories(targetFile.getParent());
 		Files.writeString(targetFile, newContent, StandardCharsets.UTF_8);
-		progress.accept("Saved modified resource: " + apktoolDir.relativize(targetFile));
+		progress.onProgress(65, "Saved modified resource: " + apktoolDir.relativize(targetFile));
 
 		return rebuildAndSignApk(apktoolDir, buildDir, distDir, progress);
 	}
@@ -287,29 +307,51 @@ public class LivePatcherManager {
 		return direct;
 	}
 
-	private Path rebuildAndSignApk(Path apktoolDir, Path buildDir, Path distDir, Consumer<String> progress) throws Exception {
-		progress.accept("Reassembling APK with Apktool (compiling XML resources & smali)...");
+	private Path rebuildAndSignApk(Path apktoolDir, Path buildDir, Path distDir, ProgressListener progress) throws Exception {
+		Path origMetaInf = apktoolDir.resolve("original").resolve("META-INF");
+		if (Files.exists(origMetaInf)) {
+			FileUtils.deleteQuietly(origMetaInf.toFile());
+		}
+
+		progress.onProgress(85, "Reassembling APK with Apktool (compiling XML resources & smali)...");
 		Path apktoolJar = binDir.resolve("apktool_2.10.0.jar");
 		Path unsignedApk = buildDir.resolve("unsigned.apk");
-		runCmd(progress, "java", "-jar", apktoolJar.toString(), "b", "-f", apktoolDir.toString(), "-o", unsignedApk.toString());
+		runCmd(msg -> progress.onProgress(88, msg), "java", "-jar", apktoolJar.toString(), "b", "-f", apktoolDir.toString(), "-o",
+				unsignedApk.toString());
 
-		progress.accept("Signing and aligning APK with Uber-APK-Signer...");
+		if (!Files.exists(unsignedApk)) {
+			throw new RuntimeException("Apktool failed to build " + unsignedApk);
+		}
+
+		progress.onProgress(92, "Signing and aligning APK with Uber-APK-Signer...");
 		Path signerJar = binDir.resolve("uber-apk-signer-1.3.0.jar");
-		runCmd(progress, "java", "-jar", signerJar.toString(), "--apks", unsignedApk.toString(), "--out", distDir.toString(),
+		runCmd(msg -> progress.onProgress(95, msg), "java", "-jar", signerJar.toString(),
+				"--apks", unsignedApk.toString(),
+				"--out", distDir.toString(),
+				"--allowResign",
 				"--overwrite");
 
 		Path finalApk = null;
-		try (Stream<Path> stream = Files.list(distDir)) {
+		try (Stream<Path> stream = Files.walk(distDir)) {
 			finalApk = stream
-					.filter(p -> p.toString().endsWith(".apk"))
+					.filter(Files::isRegularFile)
+					.filter(p -> p.getFileName().toString().endsWith(".apk"))
+					.sorted((a, b) -> {
+						boolean aSigned = a.getFileName().toString().contains("debugSigned");
+						boolean bSigned = b.getFileName().toString().contains("debugSigned");
+						return Boolean.compare(bSigned, aSigned);
+					})
 					.findFirst()
 					.orElse(null);
 		}
 		if (finalApk == null) {
-			throw new RuntimeException("No signed APK produced in " + distDir);
+			Path fallbackApk = distDir.resolve("modified-unsigned.apk");
+			Files.copy(unsignedApk, fallbackApk, StandardCopyOption.REPLACE_EXISTING);
+			finalApk = fallbackApk;
+			progress.onProgress(98, "Warning: Uber-Signer did not output signed apk, fallback to: " + fallbackApk.getFileName());
 		}
 
-		progress.accept("BUILD SUCCESS! Final APK ready at:\n" + finalApk.toAbsolutePath());
+		progress.onProgress(100, "BUILD SUCCESS! Final APK ready at:\n" + finalApk.toAbsolutePath());
 		return finalApk;
 	}
 
@@ -320,9 +362,10 @@ public class LivePatcherManager {
 		try (BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
 			String line;
 			while ((line = reader.readLine()) != null) {
-				LOG.debug("LivePatcher: {}", line);
-				if (line.contains("error") || line.contains("Warning") || line.contains("Built") || line.contains("Signed")) {
-					progress.accept(line);
+				String trimmed = line.trim();
+				if (!trimmed.isEmpty()) {
+					LOG.debug("LivePatcher: {}", trimmed);
+					progress.accept(trimmed);
 				}
 			}
 		}
