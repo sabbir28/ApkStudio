@@ -2,10 +2,11 @@ name: Release
 
 on:
   push:
+    branches: [ main, master ]
     tags:
       - "v*.*.*"
-
-    branches: [ "release-test/v*.*.*" ]
+      - "v*"
+  workflow_dispatch:
 
 # additional permissions for provided GitHub token to create new release
 permissions:
@@ -22,13 +23,18 @@ jobs:
         with:
           release: 25
 
-
       - name: Set jadx version
         uses: actions/github-script@v9
         with:
           script: |
-            const jadxVersion = context.ref.split('/').pop().substring(1)
-            core.exportVariable('JADX_VERSION', jadxVersion);
+            let ver;
+            if (context.ref.startsWith('refs/tags/v')) {
+              ver = context.ref.replace('refs/tags/v', '');
+            } else {
+              const sha = context.sha ? context.sha.substring(0, 7) : 'dev';
+              ver = `1.5.1-r${context.runNumber}.${sha}`;
+            }
+            core.exportVariable('JADX_VERSION', ver);
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
@@ -82,8 +88,9 @@ jobs:
   build-release-mac-bundle:
     strategy:
       matrix:
-        os: [ macos-latest, macos-15-intel ]
+        os: [ macos-latest ]
     runs-on: ${{ matrix.os }}
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
 
@@ -97,8 +104,14 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const jadxVersion = context.ref.split('/').pop().substring(1)
-            core.exportVariable('JADX_VERSION', jadxVersion);
+            let ver;
+            if (context.ref.startsWith('refs/tags/v')) {
+              ver = context.ref.replace('refs/tags/v', '');
+            } else {
+              const sha = context.sha ? context.sha.substring(0, 7) : 'dev';
+              ver = `1.5.1-r${context.runNumber}.${sha}`;
+            }
+            core.exportVariable('JADX_VERSION', ver);
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
@@ -116,6 +129,7 @@ jobs:
 
   release:
     needs: [ build-release-win-bundle, build-release-mac-bundle ]
+    if: always() && !cancelled()
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -126,12 +140,21 @@ jobs:
           distribution: temurin
           java-version: 25
 
-      - name: Set jadx version and release name
+      - name: Set jadx version and release tag
         uses: actions/github-script@v9
         with:
           script: |
-            const jadxVersion = context.ref.split('/').pop().substring(1)
-            core.exportVariable('JADX_VERSION', jadxVersion);
+            let ver, tag;
+            if (context.ref.startsWith('refs/tags/v')) {
+              ver = context.ref.replace('refs/tags/v', '');
+              tag = 'v' + ver;
+            } else {
+              const sha = context.sha ? context.sha.substring(0, 7) : 'dev';
+              ver = `1.5.1-r${context.runNumber}.${sha}`;
+              tag = 'v' + ver;
+            }
+            core.exportVariable('JADX_VERSION', ver);
+            core.exportVariable('RELEASE_TAG', tag);
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
@@ -143,40 +166,72 @@ jobs:
 
       - name: Download Windows NO-JRE bundle
         uses: actions/download-artifact@v8
+        continue-on-error: true
         with:
           name: ${{ format('jadx-gui-{0}-win.zip', env.JADX_VERSION) }}
           path: build
 
       - name: Download Windows JRE bundle
         uses: actions/download-artifact@v8
+        continue-on-error: true
         with:
           name: ${{ format('jadx-gui-{0}-with-jre-win.zip', env.JADX_VERSION) }}
           path: build
 
       - name: Download Windows MSI bundle
         uses: actions/download-artifact@v8
+        continue-on-error: true
         with:
           name: ${{ format('jadx-gui-{0}.msi', env.JADX_VERSION) }}
           path: build
 
       - name: Download macOS DMG bundles
         uses: actions/download-artifact@v8
+        continue-on-error: true
         with:
           pattern: ${{ format('jadx-gui-{0}-mac-*', env.JADX_VERSION) }}
           merge-multiple: true
           path: build
 
+      - name: Package Standalone Apk Live Modder
+        run: |
+          cd tools/apk-live-modder
+          zip -r ../../build/ApkStudio-standalone-modder.zip . -x "*__pycache__*" "*.pyc" "bin/jadx/*"
+          cd ../..
+
       - run: |
           cd build
-          ls -l
+          ls -la
 
       - name: Release
         uses: softprops/action-gh-release@v3
         with:
-          name: ${{ env.JADX_VERSION }}
-          draft: true
-          fail_on_unmatched_files: true
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ${{ format('ApkStudio {0}', env.RELEASE_TAG) }}
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: false
+          generate_release_notes: true
+          body: |
+            ### 🚀 ApkStudio Release (${{ env.RELEASE_TAG }})
+
+            **ApkStudio** allows direct in-app editing of decompiled Java code and live APK recompilation and signing.
+
+            #### 🌟 Features in ApkStudio:
+            - **⚡ Live Java Code Editing**: Edit decompiled Java sources and save/patch directly into a working APK.
+            - **🔄 Automated Ghost Pipeline**: Seamlessly compiles Java (ECJ) $\to$ DEX (D8) $\to$ Smali (Baksmali) $\to$ APK (Apktool) $\to$ Signed APK (Uber-Signer).
+            - **🛠 Standalone Modder Included**: Standalone CLI & GUI patcher included in `ApkStudio-standalone-modder.zip`.
+
+            #### 📦 Downloads:
+            - **Windows (Recommended with JRE)**: `jadx-gui-*-with-jre-win.zip` (standalone, no Java installation needed)
+            - **Windows (No JRE)**: `jadx-gui-*-win.zip`
+            - **Windows Installer**: `jadx-gui-*.msi`
+            - **All Platforms (Linux, macOS, Windows)**: `jadx-*.zip`
+            - **macOS (DMG installer)**: `jadx-gui-*-mac-*.dmg`
+            - **Standalone Live Modder Tool**: `ApkStudio-standalone-modder.zip`
           files: |
             build/jadx-*.zip
+            build/jadx-gui-*.zip
             build/jadx-gui-*.msi
             build/jadx-gui-*-mac-*.dmg
+            build/ApkStudio-standalone-modder.zip

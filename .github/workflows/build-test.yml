@@ -2,9 +2,10 @@ name: Build Test
 
 on:
   push:
-    branches: [ master, build-test ]
+    branches: [ main, master, build-test ]
   pull_request:
-    branches: [ master ]
+    branches: [ main, master ]
+  workflow_dispatch:
 
 jobs:
   tests:
