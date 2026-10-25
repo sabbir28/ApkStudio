@@ -123,6 +123,7 @@ import jadx.gui.logs.LogPanel;
 import jadx.gui.plugins.GuiPluginsManager;
 import jadx.gui.plugins.context.TreePopupMenuEntry;
 import jadx.gui.plugins.mappings.RenameMappingsGui;
+import jadx.gui.plugins.patcher.LivePatchDialog;
 import jadx.gui.plugins.quark.QuarkDialog;
 import jadx.gui.report.ExceptionDialog;
 import jadx.gui.report.JadxExceptionHandler;
@@ -1219,6 +1220,8 @@ public class MainWindow extends JFrame implements IMainWindow {
 				() -> new QuarkDialog(MainWindow.this).setVisible(true));
 		JadxGuiAction debuggerAction = new JadxGuiAction(ActionModel.OPEN_DEVICE,
 				() -> new ADBDialog(MainWindow.this).setVisible(true));
+		JadxGuiAction livePatcherAction = new JadxGuiAction(ActionModel.APK_LIVE_PATCH,
+				() -> LivePatchDialog.open(MainWindow.this));
 
 		JMenu file = new JadxMenu(NLS.str("menu.file"), shortcutsController);
 		file.setMnemonic(KeyEvent.VK_F);
@@ -1282,6 +1285,7 @@ public class MainWindow extends JFrame implements IMainWindow {
 		tools.add(deobfMenuItem);
 		tools.add(quarkAction);
 		tools.add(debuggerAction);
+		tools.add(livePatcherAction);
 
 		JMenu help = new JadxMenu(NLS.str("menu.help"), shortcutsController);
 		help.setMnemonic(KeyEvent.VK_H);
@@ -1391,6 +1395,7 @@ public class MainWindow extends JFrame implements IMainWindow {
 			deobfAction.setEnabled(loaded);
 			quarkAction.setEnabled(loaded);
 			debuggerAction.setEnabled(loaded);
+			livePatcherAction.setEnabled(loaded);
 			resetCacheAction.setEnabled(loaded);
 			return false;
 		});

@@ -43,3 +43,6 @@ jadx-output/
 .env
 
 cliff.toml
+
+__pycache__/
+*.pyc

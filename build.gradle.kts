@@ -38,7 +38,9 @@ allprojects {
 		java {
 			importOrderFile("$rootDir/config/code-formatter/eclipse.importorder")
 			eclipse().configFile("$rootDir/config/code-formatter/eclipse.xml")
-			removeUnusedImports()
+			if (JavaVersion.current() <= JavaVersion.VERSION_21) {
+				removeUnusedImports()
+			}
 			commonFormatOptions()
 		}
 		kotlin {

@@ -41,6 +41,7 @@ checkstyle {
 tasks {
 	withType<JavaCompile> {
 		options.encoding = "UTF-8"
+		options.release.set(jadxBuildJavaVersion ?: 11)
 		// options.compilerArgs = listOf("-Xlint:deprecation")
 	}
 	test {

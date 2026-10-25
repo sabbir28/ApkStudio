@@ -63,6 +63,7 @@ public enum ActionModel {
 	FORWARD_V(MENU_TOOLBAR, NLS.str("action.variant", NLS.str("nav.forward")), null, "ui/right", null),
 	QUARK(MENU_TOOLBAR, NLS.str("menu.quark"), null, "ui/quark", null),
 	OPEN_DEVICE(MENU_TOOLBAR, NLS.str("debugger.process_selector"), null, "ui/startDebugger", null),
+	APK_LIVE_PATCH(MENU_TOOLBAR, NLS.str("menu.apk_live_patch"), null, "ui/runAll", null),
 
 	FIND_USAGE(CODE_AREA, NLS.str("popup.find_usage"), null, null, keyboard(KeyEvent.VK_X)),
 	FIND_USAGE_PLUS(CODE_AREA, NLS.str("popup.usage_dialog_plus"), null, null, keyboard(KeyEvent.VK_C)),

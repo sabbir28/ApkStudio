@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 
 import jadx.api.DecompilationMode;
 import jadx.core.dex.visitors.SaveCode;
+import jadx.gui.plugins.patcher.LivePatchDialog;
 import jadx.gui.treemodel.JClass;
 import jadx.gui.treemodel.JNode;
 import jadx.gui.ui.MainWindow;
@@ -22,6 +23,7 @@ import jadx.gui.ui.dialog.RenameDialog;
 import jadx.gui.ui.filedialog.FileDialogWrapper;
 import jadx.gui.ui.filedialog.FileOpenMode;
 import jadx.gui.utils.NLS;
+import jadx.gui.utils.UiUtils;
 
 public class JClassPopupMenu extends JPopupMenu {
 	private static final long serialVersionUID = -7781009781149260806L;
@@ -35,6 +37,11 @@ public class JClassPopupMenu extends JPopupMenu {
 
 		add(RenameDialog.buildRenamePopupMenuItem(mainWindow, jClass));
 		add(makeExportSubMenu(jClass));
+
+		JMenuItem patchItem = new JMenuItem(NLS.str("popup.patch_class"));
+		patchItem.setIcon(UiUtils.openSvgIcon("ui/runAll"));
+		patchItem.addActionListener(event -> LivePatchDialog.openForClass(mainWindow, jClass));
+		add(patchItem);
 	}
 
 	private JMenuItem makeExportSubMenu(JClass jClass) {
